@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhisperType · Liquid Glass GUI 预览</title>
+  <link rel="stylesheet" href="liquid-glass.css" />
+  <style>
+    /* === 预览页布局（非应用代码，仅用于多窗口并排展示） === */
+    body {
+      display: flex;
+      gap: 32px;
+      padding: 40px;
+      align-items: flex-start;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .preview-card { display: flex; flex-direction: column; gap: 12px; }
+    .preview-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.7);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      letter-spacing: 0.5px;
+    }
+    .preview-desc {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      margin-bottom: 4px;
+    }
+
+    /* === 主窗口尺寸 === */
+    .window-main { width: 420px; height: 580px; }
+    /* === 设置窗口尺寸 === */
+    .window-settings { width: 720px; height: 560px; }
+    /* === 悬浮窗尺寸 === */
+    .window-float { width: 280px; height: 64px; }
+
+    /* === 设置窗口侧边栏 === */
+    .sidebar {
+      width: 180px;
+      background: var(--glass-secondary);       /* 75% 次级透明度 */
+      backdrop-filter: blur(var(--blur-sidebar)) saturate(var(--blur-saturation));
+      -webkit-backdrop-filter: blur(var(--blur-sidebar)) saturate(var(--blur-saturation));
+      border-right: var(--border-divider);
+      padding: var(--space-lg) var(--space-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      height: 36px;
+      padding: 0 var(--space-md);
+      border-radius: var(--radius-button-sm);   /* 8px */
+      font-size: var(--font-size-body);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background var(--transition-hover), color var(--transition-hover);
+    }
+    .sidebar-item:hover { background: rgba(0,0,0,0.04); }
+    .sidebar-item.active {
+      background: var(--color-accent-soft);
+      color: var(--color-accent);
+      font-weight: var(--font-weight-bold);
+    }
+    .sidebar-icon { width: 18px; text-align: center; font-size: 15px; }
+
+    /* === 录音波形 === */
+    .waveform {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      height: 28px;
+    }
+    .wave-bar {
+      width: 3px;
+      border-radius: 2px;
+      background: var(--color-recording);
+      animation: wave 1s var(--ease-smooth) infinite;
+    }
+    .wave-bar:nth-child(1) { height: 8px;  animation-delay: 0s; }
+    .wave-bar:nth-child(2) { height: 18px; animation-delay: 0.1s; }
+    .wave-bar:nth-child(3) { height: 24px; animation-delay: 0.2s; }
+    .wave-bar:nth-child(4) { height: 14px; animation-delay: 0.3s; }
+    .wave-bar:nth-child(5) { height: 22px; animation-delay: 0.15s; }
+    .wave-bar:nth-child(6) { height: 10px; animation-delay: 0.25s; }
+    .wave-bar:nth-child(7) { height: 20px; animation-delay: 0.05s; }
+    @keyframes wave {
+      0%, 100% { transform: scaleY(0.5); }
+      50% { transform: scaleY(1); }
+    }
+
+    /* === 设置行 === */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-lg);
+      padding: var(--space-md) 0;
+    }
+    .setting-label { font-size: var(--font-size-body); color: var(--text-primary); }
+    .setting-hint { font-size: var(--font-size-caption); color: var(--text-tertiary); margin-top: 2px; }
+    .setting-control { display: flex; align-items: center; gap: var(--space-sm); }
+
+    /* === 热键捕获框 === */
+    .hotkey-box {
+      height: 36px;
+      min-width: 160px;
+      padding: 0 var(--space-md);
+      border-radius: var(--radius-input);
+      border: var(--border-glass-subtle);
+      background: rgba(255,255,255,0.5);
+      backdrop-filter: blur(12px) saturate(160%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-body);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: border-color var(--transition-hover), box-shadow var(--transition-hover);
+    }
+    .hotkey-box.capturing {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px var(--color-accent-soft);
+      color: var(--text-tertiary);
+    }
+
+    /* === 单选卡片 === */
+    .radio-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
+      border-radius: var(--radius-button);
+      border: var(--border-glass-subtle);
+      background: var(--glass-control);
+      cursor: pointer;
+      transition: background var(--transition-hover), border-color var(--transition-hover);
+      flex: 1;
+    }
+    .radio-card:hover { background: var(--glass-hover); }
+    .radio-card.selected {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px var(--color-accent-soft);
+    }
+
+    /* === 底部状态栏 === */
+    .statusbar {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: 0 var(--space-lg);
+      border-top: var(--border-divider);
+      background: rgba(255,255,255,0.3);
+      font-size: var(--font-size-caption);
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+    }
+    .status-item { display: flex; align-items: center; gap: var(--space-xs); }
+    .status-sep { color: rgba(0,0,0,0.15); }
+
+    /* === 内容区 === */
+    .content { flex: 1; overflow-y: auto; padding: var(--space-xl); }
+    .content-settings { padding: var(--space-xl) var(--space-2xl); }
+
+    /* === 录音控制区 === */
+    .record-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-2xl) var(--space-xl) var(--space-xl);
+    }
+
+    /* === 结果展示区 === */
+    .result-card {
+      padding: var(--space-lg);
+      min-height: 120px;
+    }
+    .result-text {
+      font-size: var(--font-size-body);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 48px;
+    }
+    .result-placeholder {
+      color: var(--text-tertiary);
+      font-weight: var(--font-weight-light);
+    }
+
+    /* === 设置面板分组 === */
+    .settings-group { margin-bottom: var(--space-xl); }
+    .group-title {
+      font-size: var(--font-size-caption);
+      font-weight: var(--font-weight-bold);
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: var(--space-md);
+    }
+
+    /* === 悬浮窗内容 === */
+    .float-content {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: 0 var(--space-lg);
+      height: 100%;
+    }
+    .float-text {
+      flex: 1;
+      font-size: var(--font-size-caption);
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* === 标签胶囊 === */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: var(--font-weight-bold);
+    }
+    .tag-success { background: rgba(76,175,122,0.15); color: var(--color-success); }
+    .tag-accent  { background: var(--color-accent-soft); color: var(--color-accent); }
+  </style>
+</head>
+<body>
+
+  <!-- ============ 预览1：主窗口 ============ -->
+  <div class="preview-card">
+    <div class="preview-label">主窗口 · MainWindow</div>
+    <div class="preview-desc">420×580 · 标题栏 + 录音控制区 + 结果展示区 + 底部状态栏</div>
+    <div class="window window-main">
+      <!-- 标题栏 -->
+      <div class="titlebar">
+        <div class="titlebar-buttons">
+          <button class="titlebar-btn close"></button>
+          <button class="titlebar-btn minimize"></button>
+          <button class="titlebar-btn maximize"></button>
+        </div>
+        <div class="titlebar-title">WhisperType</div>
+        <div style="width:52px"></div>
+      </div>
+
+      <!-- 主体内容 -->
+      <div class="content">
+        <!-- 录音控制区 -->
+        <div class="record-section">
+          <button class="btn-record">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+              <path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z" fill="#d45a5a"/>
+              <path d="M19 11a1 1 0 10-2 0 5 5 0 01-10 0 1 1 0 10-2 0 7 7 0 006 6.92V21a1 1 0 102 0v-3.08A7 7 0 0019 11z" fill="#d45a5a"/>
+            </svg>
+          </button>
+          <div style="text-align:center">
+            <div class="text-body text-secondary">点击录音 · 或按下热键</div>
+            <div style="margin-top:6px">
+              <span class="tag tag-accent">Ctrl + Shift + Space</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <span class="tag tag-success">● 就绪</span>
+            <span class="tag tag-accent">长按模式</span>
+          </div>
+        </div>
+
+        <!-- 实时转写结果展示区 -->
+        <div class="glass-primary result-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span class="text-caption" style="font-weight:600">实时转写</span>
+            <span class="text-caption">0 字</span>
+          </div>
+          <div class="result-text result-placeholder">
+            识别到的文字将显示在这里。按下热键开始录音，松开即可自动输入文字到光标位置。
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部状态栏 -->
+      <div class="statusbar">
+        <div class="status-item">
+          <div class="status-dot"></div>
+          <span>已就绪</span>
+        </div>
+        <span class="status-sep">|</span>
+        <div class="status-item">模型: ggml-small</div>
+        <span class="status-sep">|</span>
+        <div class="status-item">设备: 系统默认</div>
+        <div style="flex:1"></div>
+        <div class="status-item">作者：小寒</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 预览2：设置窗口 ============ -->
+  <div class="preview-card">
+    <div class="preview-label">设置窗口 · SettingsWindow</div>
+    <div class="preview-desc">720×560 · 侧边栏导航 + 分组设置面板 + 底部操作按钮</div>
+    <div class="window window-settings" style="flex-direction:row">
+      <!-- 侧边栏（75% 透明度） -->
+      <div class="sidebar">
+        <div class="sidebar-item active">
+          <span class="sidebar-icon">⌨</span><span>热键设置</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">◈</span><span>模型配置</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">¶</span><span>文字输入</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">◉</span><span>音频设备</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">♪</span><span>反馈设置</span>
+        </div>
+        <div style="flex:1"></div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">ⓘ</span><span>关于</span>
+        </div>
+      </div>
+
+      <!-- 右侧主区域 -->
+      <div style="flex:1;display:flex;flex-direction:column">
+        <!-- 标题栏 -->
+        <div class="titlebar">
+          <div class="titlebar-title" style="text-align:left;padding-left:8px">设置</div>
+          <div class="titlebar-buttons" style="position:absolute;right:16px">
+            <button class="titlebar-btn close"></button>
+            <button class="titlebar-btn minimize"></button>
+            <button class="titlebar-btn maximize"></button>
+          </div>
+        </div>
+
+        <!-- 设置内容（可滚动） -->
+        <div class="content content-settings scroll-area">
+          <!-- 热键设置组 -->
+          <div class="settings-group">
+            <div class="group-title">热键设置</div>
+            <div class="glass-primary" style="padding:4px 20px;border-radius:14px">
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">全局热键</div>
+                  <div class="setting-hint">点击右侧框后按下目标组合键</div>
+                </div>
+                <div class="setting-control">
+                  <div class="hotkey-box">Ctrl + Shift + Space</div>
+                </div>
+              </div>
+              <hr class="divider" style="margin:0" />
+              <div class="setting-row">
+                <div class="setting-label">录音模式</div>
+              </div>
+              <div style="display:flex;gap:12px;padding-bottom:12px">
+                <div class="radio-card selected">
+                  <div class="radio checked"></div>
+                  <div>
+                    <div class="setting-label">长按模式</div>
+                    <div class="setting-hint">按下录音，松开停止</div>
+                  </div>
+                </div>
+                <div class="radio-card">
+                  <div class="radio"></div>
+                  <div>
+                    <div class="setting-label">点击模式</div>
+                    <div class="setting-hint">点击开始，再次点击停止</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 模型配置组 -->
+          <div class="settings-group">
+            <div class="group-title">Whisper 模型</div>
+            <div class="glass-primary" style="padding:4px 20px;border-radius:14px">
+              <div class="setting-row">
+                <div class="setting-label">Whisper CLI 路径</div>
+                <div class="setting-control" style="flex:1;max-width:340px">
+                  <input class="input" value="./whisper/whisper-cli.exe" />
+                  <button class="btn btn-sm">浏览</button>
+                </div>
+              </div>
+              <hr class="divider" style="margin:0" />
+              <div class="setting-row">
+                <div class="setting-label">模型文件</div>
+                <div class="setting-control" style="flex:1;max-width:340px">
+                  <input class="input" value="./model/ggml-small.bin" />
+                  <button class="btn btn-sm">浏览</button>
+                </div>
+              </div>
+              <hr class="divider" style="margin:0" />
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">最短录音时长</div>
+                  <div class="setting-hint">低于此时长的录音将被忽略</div>
+                </div>
+                <div class="setting-control">
+                  <input type="range" class="slider" style="width:160px" value="300" min="0" max="2000" />
+                  <span class="text-caption" style="min-width:64px;text-align:right">300 ms</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 文字输入组 -->
+          <div class="settings-group">
+            <div class="group-title">文字输入</div>
+            <div class="glass-primary" style="padding:4px 20px;border-radius:14px">
+              <div class="setting-row">
+                <div class="setting-label">输入方式</div>
+              </div>
+              <div style="display:flex;gap:12px;padding-bottom:12px">
+                <div class="radio-card selected">
+                  <div class="radio checked"></div>
+                  <div>
+                    <div class="setting-label">粘贴模式</div>
+                    <div class="setting-hint">推荐中文</div>
+                  </div>
+                </div>
+                <div class="radio-card">
+                  <div class="radio"></div>
+                  <div>
+                    <div class="setting-label">模拟打字模式</div>
+                    <div class="setting-hint">推荐英文</div>
+                  </div>
+                </div>
+              </div>
+              <hr class="divider" style="margin:0" />
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">去除首尾空格</div>
+                </div>
+                <div class="switch on"></div>
+              </div>
+              <hr class="divider" style="margin:0" />
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">文本后缀</div>
+                  <div class="setting-hint">如空格 / 换行 \n，留空不添加</div>
+                </div>
+                <input class="input" style="max-width:120px" value=" " />
+              </div>
+              <hr class="divider" style="margin:0" />
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">自动发送消息</div>
+                  <div class="setting-hint">末尾补回车，适用于聊天框</div>
+                </div>
+                <div class="switch"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 音频设备组 -->
+          <div class="settings-group">
+            <div class="group-title">音频输入设备</div>
+            <div class="glass-primary" style="padding:4px 20px;border-radius:14px">
+              <div class="setting-row">
+                <div class="setting-label">录音设备</div>
+                <div class="setting-control" style="flex:1;max-width:340px">
+                  <select class="select">
+                    <option>系统默认录音设备</option>
+                    <option>麦克风 (Realtek Audio)</option>
+                  </select>
+                  <button class="btn btn-sm">刷新</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 反馈组 -->
+          <div class="settings-group">
+            <div class="group-title">反馈</div>
+            <div class="glass-primary" style="padding:4px 20px;border-radius:14px">
+              <div class="setting-row">
+                <div class="setting-label">启用声音提示</div>
+                <div class="switch on"></div>
+              </div>
+              <hr class="divider" style="margin:0" />
+              <div class="setting-row">
+                <div class="setting-label">显示悬浮窗</div>
+                <div class="switch on"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部操作栏 -->
+        <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 32px;border-top:1px solid rgba(0,0,0,0.06);background:rgba(255,255,255,0.3)">
+          <button class="btn">取消</button>
+          <button class="btn btn-primary">保存并关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 预览3：录音中状态主窗口 + 悬浮窗 ============ -->
+  <div class="preview-card">
+    <div class="preview-label">录音中状态 · Recording</div>
+    <div class="preview-desc">主窗口录音脉冲动画 + 悬浮窗实时显示</div>
+    <div class="window window-main">
+      <div class="titlebar">
+        <div class="titlebar-buttons">
+          <button class="titlebar-btn close"></button>
+          <button class="titlebar-btn minimize"></button>
+          <button class="titlebar-btn maximize"></button>
+        </div>
+        <div class="titlebar-title">WhisperType</div>
+        <div style="width:52px"></div>
+      </div>
+
+      <div class="content">
+        <div class="record-section">
+          <button class="btn-record recording">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <rect x="7" y="5" width="10" height="14" rx="2" fill="#fff"/>
+            </svg>
+          </button>
+          <div class="waveform">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+          <div style="text-align:center">
+            <div class="text-body" style="color:var(--color-recording);font-weight:600">正在录音...</div>
+            <div class="text-caption" style="margin-top:4px">松开结束录音并输入文字</div>
+          </div>
+        </div>
+
+        <div class="glass-primary result-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span class="text-caption" style="font-weight:600">实时转写</span>
+            <span class="text-caption">识别中...</span>
+          </div>
+          <div class="result-text">
+            你好，这是一段实时语音识别的演示文字，WhisperType 正在将我的语音转化为文字。
+          </div>
+        </div>
+      </div>
+
+      <div class="statusbar">
+        <div class="status-item">
+          <div class="status-dot recording"></div>
+          <span style="color:var(--color-recording)">录音中</span>
+        </div>
+        <span class="status-sep">|</span>
+        <div class="status-item">00:03</div>
+        <div style="flex:1"></div>
+        <div class="status-item">粘贴模式</div>
+      </div>
+    </div>
+
+    <!-- 悬浮窗 -->
+    <div style="margin-top:16px">
+      <div class="preview-desc">悬浮窗 · FloatingWidget（录音时显示）</div>
+      <div class="window window-float glass-primary" style="border-radius:32px">
+        <div class="float-content">
+          <div class="status-dot recording"></div>
+          <div class="float-text">正在录音... 00:03</div>
+          <button class="btn btn-sm" style="height:24px;padding:0 10px">停止</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

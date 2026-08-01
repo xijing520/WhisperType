@@ -1,0 +1,23 @@
+# Build output
+/target/
+/build/
+/dist/
+/installer/Output/
+/installer-output/
+
+# Model files (download via download-model.ps1)
+/model/
+
+# Logs
+*.log
+
+# Maven shade byproduct
+/dependency-reduced-pom.xml
+
+# IDE
+.idea/
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store
